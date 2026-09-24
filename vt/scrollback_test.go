@@ -2,6 +2,8 @@ package vt
 
 import (
 	"testing"
+
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 func TestScrollback(t *testing.T) {
@@ -163,4 +165,111 @@ func TestScrollback(t *testing.T) {
 			t.Errorf("expected empty scrollback after ED 3, got %d", e.ScrollbackLen())
 		}
 	})
+
+	t.Run("ring buffer order and lines across wrap", func(t *testing.T) {
+		sb := NewScrollback(5)
+
+		makeLine := func(val rune) uv.Line {
+			l := make(uv.Line, 3)
+			l[0].Content = string(val)
+			l[0].Width = 1
+			l[1].Content = string(val)
+			l[1].Width = 1
+			l[2].Content = string(val)
+			l[2].Width = 1
+			return l
+		}
+
+		for i := 0; i < 12; i++ {
+			sb.Push(makeLine(rune('A' + i)))
+		}
+
+		if sb.Len() != 5 {
+			t.Fatalf("expected len 5, got %d", sb.Len())
+		}
+
+		// Oldest should be 'H' (index 7), newest should be 'L' (index 11)
+		for i := 0; i < 5; i++ {
+			want := string(rune('H' + i))
+			line := sb.Line(i)
+			if line == nil || line[0].Content != want {
+				t.Errorf("line %d: expected content %s, got %v", i, want, line)
+			}
+			cell := sb.CellAt(0, i)
+			if cell == nil || cell.Content != want {
+				t.Errorf("cell %d: expected content %s, got %v", i, want, cell)
+			}
+		}
+
+		all := sb.Lines()
+		if len(all) != 5 {
+			t.Fatalf("expected Lines() len 5, got %d", len(all))
+		}
+		for i := 0; i < 5; i++ {
+			want := string(rune('H' + i))
+			if all[i][0].Content != want {
+				t.Errorf("Lines()[%d]: expected content %s, got %s", i, want, all[i][0].Content)
+			}
+		}
+
+		// Test SetMaxLines preserves order
+		sb.SetMaxLines(3)
+		if sb.Len() != 3 {
+			t.Fatalf("expected len 3 after resize, got %d", sb.Len())
+		}
+		for i := 0; i < 3; i++ {
+			want := string(rune('J' + i))
+			line := sb.Line(i)
+			if line == nil || line[0].Content != want {
+				t.Errorf("after resize line %d: expected content %s, got %v", i, want, line)
+			}
+		}
+	})
+
+	t.Run("buffer reuse on eviction", func(t *testing.T) {
+		sb := NewScrollback(3)
+		makeLine := func(n int, r rune) uv.Line {
+			l := make(uv.Line, n)
+			for i := range l {
+				l[i].Content = string(r)
+				l[i].Width = 1
+			}
+			return l
+		}
+
+		sb.Push(makeLine(10, 'A'))
+		sb.Push(makeLine(10, 'B'))
+		sb.Push(makeLine(10, 'C'))
+
+		// Oldest line is A; grab its backing array pointer
+		oldPtr := &sb.Line(0)[0]
+
+		// Push 4th line with smaller length (can reuse capacity 10)
+		sb.Push(makeLine(6, 'D'))
+
+		// Newest line is D (index 2)
+		newPtr := &sb.Line(2)[0]
+		if oldPtr != newPtr {
+			t.Errorf("expected evicted buffer to be reused (old ptr %p, new ptr %p)", oldPtr, newPtr)
+		}
+	})
+}
+
+func BenchmarkScrollbackPushFull(b *testing.B) {
+	sb := NewScrollback(DefaultScrollbackSize)
+	line := make(uv.Line, 80)
+	for i := range line {
+		line[i].Content = "x"
+		line[i].Width = 1
+	}
+	// Fill scrollback to capacity
+	for i := 0; i < DefaultScrollbackSize; i++ {
+		sb.Push(line)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		sb.Push(line)
+	}
 }
