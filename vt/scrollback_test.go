@@ -226,6 +226,45 @@ func TestScrollback(t *testing.T) {
 		}
 	})
 
+	t.Run("SetMaxLines growth preserves order after wrapping", func(t *testing.T) {
+		sb := NewScrollback(3)
+		makeLine := func(r rune) uv.Line {
+			l := make(uv.Line, 1)
+			l[0].Content = string(r)
+			l[0].Width = 1
+			return l
+		}
+
+		// Push A, B, C, D -> ring wraps: head = 1, logical [B, C, D]
+		sb.Push(makeLine('A'))
+		sb.Push(makeLine('B'))
+		sb.Push(makeLine('C'))
+		sb.Push(makeLine('D'))
+
+		// Increase capacity to 5
+		sb.SetMaxLines(5)
+
+		// Push E -> should append, yielding logical [B, C, D, E]
+		sb.Push(makeLine('E'))
+
+		if sb.Len() != 4 {
+			t.Fatalf("expected len 4, got %d", sb.Len())
+		}
+		expected := []string{"B", "C", "D", "E"}
+		for i, want := range expected {
+			line := sb.Line(i)
+			if line == nil || line[0].Content != want {
+				t.Errorf("line %d: expected %s, got %v", i, want, line)
+			}
+		}
+		all := sb.Lines()
+		for i, want := range expected {
+			if all[i][0].Content != want {
+				t.Errorf("Lines()[%d]: expected %s, got %s", i, want, all[i][0].Content)
+			}
+		}
+	})
+
 	t.Run("buffer reuse on eviction", func(t *testing.T) {
 		sb := NewScrollback(3)
 		makeLine := func(n int, r rune) uv.Line {

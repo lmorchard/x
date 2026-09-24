@@ -104,10 +104,13 @@ func (s *Scrollback) SetMaxLines(maxLines int) {
 	}
 
 	s.maxLines = maxLines
-	if len(s.lines) > maxLines {
-		all := s.Lines()
-		s.lines = all[len(all)-maxLines:]
+	if s.head != 0 {
+		// Re-linearize so head is reset to 0 before appending or trimming
+		s.lines = s.Lines()
 		s.head = 0
+	}
+	if len(s.lines) > maxLines {
+		s.lines = s.lines[len(s.lines)-maxLines:]
 	}
 }
 
