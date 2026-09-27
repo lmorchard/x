@@ -487,3 +487,15 @@ func (e *Emulator) ClearScrollback() {
 func (e *Emulator) IsAltScreen() bool {
 	return e.scr == &e.scrs[1]
 }
+
+// ScrollRegion returns the active screen's scroll region: the DECSTBM
+// margins, or the whole screen when none are set.
+func (e *Emulator) ScrollRegion() uv.Rectangle {
+	return e.scr.ScrollRegion()
+}
+
+// CursorPen returns the active screen's current pen: the SGR style that
+// text written next will carry.
+func (e *Emulator) CursorPen() uv.Style {
+	return e.scr.cursorPen()
+}

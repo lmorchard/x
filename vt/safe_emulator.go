@@ -222,3 +222,19 @@ func (se *SafeEmulator) IsAltScreen() bool {
 	defer se.mu.RUnlock()
 	return se.Emulator.IsAltScreen()
 }
+
+// ScrollRegion returns the active screen's scroll region in a
+// concurrency-safe manner.
+func (se *SafeEmulator) ScrollRegion() uv.Rectangle {
+	se.mu.RLock()
+	defer se.mu.RUnlock()
+	return se.Emulator.ScrollRegion()
+}
+
+// CursorPen returns the active screen's current pen in a
+// concurrency-safe manner.
+func (se *SafeEmulator) CursorPen() uv.Style {
+	se.mu.RLock()
+	defer se.mu.RUnlock()
+	return se.Emulator.CursorPen()
+}
